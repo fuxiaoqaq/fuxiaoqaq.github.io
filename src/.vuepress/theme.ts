@@ -4,7 +4,7 @@ import sidebar from "./sidebar.js";
 // import { MR_HOPE_AVATAR } from "./logo.js";
 
 export default hopeTheme({
-  hostname: "https://mister-hope.github.io",
+  hostname: "https://fuxiaoqaq.github.io",
 
   author: {
     name: "拂晓",
