@@ -148,7 +148,4 @@ cluster nodes # 查看节点状态
 
 ### 客户端
 
-免费开源的Redis客户点工具[AnotherRedisDesktopManager](https://github.com/qishibo/AnotherRedisDesktopManager)
-- 单机
-- 哨兵
-- 集群
+免费开源的Redis客户端工具[AnotherRedisDesktopManager](https://github.com/qishibo/AnotherRedisDesktopManager)
