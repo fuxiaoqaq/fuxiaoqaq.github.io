@@ -3,7 +3,6 @@ import theme from "./theme.js";
 
 export default defineUserConfig({
   base: "/",
-
   lang: "zh-CN",
   title: "拂晓",
   description: "记录",
