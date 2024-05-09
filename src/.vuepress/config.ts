@@ -61,4 +61,9 @@ module.exports = {
 
         }
     },
+    plugins: [
+        [
+            '@renovamen/vuepress-plugin-mermaid'
+        ]
+    ]
 }
