@@ -4,8 +4,8 @@
   "description": "blog",
   "main": "index.js",
   "scripts": {
-    "docs:dev": "set NODE_OPTIONS=--openssl-legacy-provider && vuepress dev src",
-    "docs:build": "set NODE_OPTIONS=--openssl-legacy-provider && vuepress build src"
+    "docs:dev": "vuepress dev src",
+    "docs:build": "vuepress build src"
   },
   "keywords": [],
   "author": "",
@@ -14,7 +14,6 @@
     "vuepress": "^1.9.10"
   },
   "dependencies": {
-    "@fortawesome/fontawesome-free": "^6.5.2",
     "vuepress-theme-reco": "^1.6.17"
   }
 }
