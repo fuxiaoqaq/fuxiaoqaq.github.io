@@ -1,14 +1,64 @@
-import { defineUserConfig } from "vuepress";
-import theme from "./theme.js";
+module.exports = {
+    head: [
+        ['meta', { name: 'viewport', content: 'width=device-width,initial-scale=1,user-scalable=no' }],
+        ['link', { rel: 'icon', href: '/logo.svg' }],
+    ],
+    title: '技术笔记',
+    description: '技术笔记',
+    theme: 'reco',
+    themeConfig: {
+        footer: false,
+        subSidebar: 'auto',
+        logo: '/logo.svg',
+        mode: 'light',
+        nav: [
+            {text: '首页',link: '/'},
+            {text: 'Java',link: '/java/'},
+            {text: '数据库',link: '/sql/'},
+        ],
+        sidebar: {
+            '/java/': [
+                {
+                    title: 'Java基础',
+                    collapsable: false,
+                    children: [
+                        {
+                            title: '面向对象',
+                            path: '/java/'
+                        }
+                    ]
+                },
+                {
+                    title: 'Java集合',
+                    collapsable: false,
+                    children: [
+                        '/java/list'
+                    ]
+                }
+            ],
+            '/sql/': [
+                {
+                    title: 'Mysql基础',
+                    collapsable: false,
+                    children: [
+                        {
+                            title: 'DDL',
+                            path: '/sql/'
+                        }
+                    ]
+                },
+                {
+                    title: 'Mysql进阶',
+                    collapsable: false,
+                    children: [
+                        {
+                            title: 'DDM',
+                            path: '/sql/test'
+                        }
+                    ]
+                }
+            ],
 
-export default defineUserConfig({
-  base: "/",
-  lang: "zh-CN",
-  title: "拂晓",
-  description: "记录",
-
-  theme,
-
-  // 和 PWA 一起启用
-  // shouldPrefetch: false,
-});
+        }
+    },
+}

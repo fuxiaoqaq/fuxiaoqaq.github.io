@@ -1,20 +1,21 @@
 {
   "name": "fuxiao-blog",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "description": "blog",
-  "license": "MIT",
-  "type": "module",
+  "main": "index.js",
   "scripts": {
-    "docs:build": "vuepress-webpack build src",
-    "docs:clean-dev": "vuepress-webpack dev src --clean-cache",
-    "docs:dev": "vuepress-webpack dev src",
-    "docs:update-package": "pnpm dlx vp-update"
+    "docs:dev": "vuepress dev src",
+    "docs:build": "vuepress build src"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "devDependencies": {
-    "@vuepress/bundler-webpack": "2.0.0-rc.9",
-    "vue": "^3.4.23",
-    "vuepress": "2.0.0-rc.9",
-    "vuepress-theme-hope": "2.0.0-rc.37",
-    "sass-loader": "^14.2.1"
+    "vuepress": "^1.9.10"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.5.2",
+    "vuepress-theme-reco": "^1.6.17"
   }
 }
+
