@@ -114,17 +114,17 @@ public class Vector<E>
 ### 初始化以及扩容总结
 #### 1.使用无参构造器
 :::warning
-- 无参构造器初始化Vector,elementData.length默认为10,capacityIncrement默认为0
-- 当elementCount = 10,触发扩容操作,调用grow方法
-- 因为capacityIncrement不大于0,即preferred growth为elementData.length,扩容为elementData.length的2倍
-- 扩容规律为 10 -> 20 -> 40
+- 无参构造器初始化Vector，elementData.length默认为10，capacityIncrement默认为0。
+- 当elementCount = 10，触发扩容操作，调用grow方法。
+- 因为capacityIncrement不大于0，即preferred growth为elementData.length，扩容为elementData.length的2倍。
+- 扩容规律为 10 -> 20 -> 40。
 :::
 #### 2.不使用无参构造器
 :::warning
-- 指定capacityIncrement,例如指定capacityIncrement=20,initialCapacity=20
-- 当elementCount = 20时触发扩容,调用grow方法
-- 因为capacityIncrement大于0,即preferred growth = 20
-- 扩容规律为 40 -> 60 -> 80,每次扩容都按照capacityIncrement的数值进行增量扩容
+- 指定capacityIncrement，例如指定capacityIncrement=20，initialCapacity=20。
+- 当elementCount = 20时触发扩容，调用grow方法。
+- 因为capacityIncrement大于0，即preferred growth = 20。
+- 扩容规律为 40 -> 60 -> 80，每次扩容都按照capacityIncrement的数值进行增量扩容。
 :::
 ## ArrayList
 ### 源码分析
@@ -212,17 +212,17 @@ public class ArrayList<E> extends AbstractList<E>
 ### 初始化以及扩容总结
 #### 1.使用无参构造器
 :::warning
-- 初始化一个容量为0的数组,即elementData = DEFAULTCAPACITY_EMPTY_ELEMENTDATA
-- 当后续第一次执行添加操作会立即执行扩容操作调用grow方法,初始化一个默认为10的ArrayList集合
-- 后续当s == 10,也就是说默认长度为10的数组已经满数据,会进一步进行扩容
-- 满足条件oldCapacity > 0,执行扩容逻辑 oldCapacity >> 1 也就是 10/2,旧容量10 新容量15,相当于扩容为原数组大小的1.5倍
+- 初始化一个容量为0的数组，即elementData = DEFAULTCAPACITY_EMPTY_ELEMENTDATA。
+- 当后续第一次执行添加操作会立即执行扩容操作调用grow方法，初始化一个默认为10的ArrayList集合。
+- 后续当s == 10，也就是说默认长度为10的数组已经满数据，会进一步进行扩容。
+- 满足条件oldCapacity > 0，执行扩容逻辑 oldCapacity >> 1 也就是 10/2，旧容量10 新容量15，相当于扩容为原数组大小的1.5倍。
 :::
 #### 2.不使用无参构造器
 :::warning
-- 会初始化一个容量为initialCapacity的数组
-- 如果initialCapacity=0,执行步骤相当于无参构造器的初始化扩容
-- 如果initialCapacity>0,会初始化一个容量为initialCapacity的数组,这时候第一次执行添加操作不会立即扩容操作
-- 当s == elementData.length触发扩容,如果指定初始化ArrayList大小,相当于比无参构造器少一次立即初始化的步骤 
+- 会初始化一个容量为initialCapacity的数组。
+- 如果initialCapacity=0，执行步骤相当于无参构造器的初始化扩容。
+- 如果initialCapacity>0，会初始化一个容量为initialCapacity的数组，这时候第一次执行添加操作不会立即扩容操作。
+- 当s == elementData.length触发扩容，如果指定初始化ArrayList大小，相当于比无参构造器少一次立即初始化的步骤 。
 :::
 
 ## Vector与ArrayList对比
@@ -293,3 +293,129 @@ public class Stack<E> extends Vector<E> {
 }
 
 ```
+## LinkedList
+### 源码分析
+```java
+ /*
+  * 1.LinkedList 集合同时实现了List和Queue集合的基本特性
+  * 2.主要结构是双向链表，双向链表的节点不要求有连续的内存存储，即插入节点的时候不需要申请连续的存储空间
+  * 3.不存在扩容操作
+  */
+public class LinkedList<E>
+        extends AbstractSequentialList<E>
+        implements List<E>, Deque<E>, Cloneable, java.io.Serializable {
+    //当前链表的长度
+    transient int size = 0;
+    /*
+     * first == null && last == null 表示双向链表没有任何数据对象
+     * first == last 双向链表只有一个对象
+     * first != null && last != null 表示双向链表至少有一个数据对象
+     */
+    //记录双向链表的头节点
+    transient Node<E> first;
+    //记录双向链表的尾节点
+    transient Node<E> last;
+
+    /*
+    void dataStructureInvariants() {
+        assert (size == 0)        ? (first == null && last == null)        : (first.prev == null && last.next == null);}
+    */
+
+    public LinkedList() {
+    }
+
+    public LinkedList(Collection<? extends E> c) {
+        this();
+        addAll(c);
+    }
+
+    private void linkFirst(E e) {
+        // 使用一个临时变量记录操作前first属性中的信息
+        final Node<E> f = first;
+        // 创建一个数据信息为e的新节点，此节点的前置节点引用为null，后置节点引用指向原来的头节点
+        final Node<E> newNode = new Node<>(null, e, f);
+        // 这句很关键，由于要在双向链表的头部添加新的节点， 因此实际上会基于newNode节点将first属性中的信息进行重设置
+        first = newNode;
+        if (f == null)
+            // 如果条件成立，则说明在进行添加操作时，双向链表中没有任何节点
+            // 因此需要将双向链表中的last属性也指向新节点，让first属性和last属性指向同一个节点
+            last = newNode;
+        else
+            // 如果条件不成立，则说明在操作前双向链表中至少有一个节点，
+            // 因此只需将原来头节点的前置节点引用指向新的头节点newNode
+            f.prev = newNode;
+        // 双向链表长度 + 1
+        size++;
+        // LinkedList 集合的操作次数 + 1
+        modCount++;
+    }
+
+    private E unlinkFirst(Node<E> f) {
+        // assert f == first && f != null;
+        // 定义一个element变量，用于记录当前双向链表头节点中的数据对象，以便方法最后将其返回
+        final E element = f.item;
+        // 创建一个next变量，用于记录当前双向链表头节点的后置节点引用。注意该变量的值可能为null
+        final Node<E> next = f.next;
+        f.item = null;
+        f.next = null; // help GC
+        // 设置双向链表中新的头节点为当前节点的后续节点
+        first = next;
+        // 如果条件成立，则说明在完成头节点的移除操作后，双向链表中已没有任何节点了
+        // 需要同时将双向链表中的next变量和last属性值设置为null
+        if (next == null)
+            last = null;
+        else
+            // 在其他情况下，设置新的头节点的前置节点引用为null，因为原来的前置节点引用指向操作前的头节点
+            next.prev = null;
+        size--;
+        modCount++;
+        return element;
+    }
+
+    // add方法默认在尾节点之后添加新节点
+    public boolean add(E e) {
+        linkLast(e);
+        return true;
+    }
+
+    // 默认头节点
+    public void push(E e) {
+        addFirst(e);
+    }
+
+    private static class Node<E> {
+        //当前Node节点存储的具体的数据对象
+        E item;
+        //当前节点指向的下一个节点，尾节点的next永远为null
+        Node<E> next;
+        //当前节点指向的上一个节点，头节点的prev永远为null
+        Node<E> prev;
+
+        Node(Node<E> prev, E element, Node<E> next) {
+            this.item = element;
+            this.next = next;
+            this.prev = prev;
+        }
+    }
+}
+```
+## LinkedList与ArrayList对比
+#### 1.写操作对比
+:::warning
+#### ArrayList写操作：
+- 使用add在数据尾部添加新的数据对象时，数组中有多余容量可以直接添加操作，基本上没有时间消耗，时间复杂度O(1)。
+- 当在尾部添加新的数据对象时，数组容量已满，会执行一次扩容操作，把新扩容的数据赋值给elementData 再进行添加数据。
+- ArrayList写最差的情况是 一直在数组中的 0号索引位置一直使用add添加对象，这样的情况，每添加一个新对象，都会将当前数组的对象整体向后移动一个索引位置，并且在数据中没有多余容量的情况下，会先进行扩容，这个操作可以规避。
+#### LinkedList写操作：
+- 如果在双向链表的头节点以及尾节点中添加新的数据对象，只需要更改更节点或者尾节点的引用信息，在这种操作下，基本上没有时间消耗，时间复杂度O(1)。
+- 如果不是在尾节点或者头节点，最坏情况下，无论是从双向链表的头节点开始查询，还是尾节点开始查询，找到正确索引位的时间复杂度都是O(n)。
+:::
+#### 2.读操作对比
+:::warning
+#### ArrayList读操作：
+- 因为ArrayList支持随机访问，无论操作者是要遍历数组中的数据对象，还是指定索引位的数据对象，读操作的性能消耗都是相同的，时间复杂度均为O(1)。
+#### LinkedList读操作：
+- 如果操作者从双向链表的头节点或尾节点读取数据，那么由于头节点和尾节点分别有first属性和last属性进行标识，因此不存在查询过程的额外耗时，直接读取数据即可。
+- 如果操作者并非在双向链表的头节点或尾节点读取数据，那么肯定存在查询过程，而查询过程都是依据节点间的引用关系遍历双向链表的。不过LinkedList集合对查 询过程做了一些优化处理。例如，根据当前指定的索引位是在双向链表的前半段，还是在双向链表的后半段，确定是从双向链表的头节点开始查询，还是从双向链表的尾节点开始查询，最差的情况是读取数据位于双向链表中部，这样无论是从头节点开始查询，还是尾节点开始查询，性能消耗都差不多。
+- 总而言之，在双向链表中查询指定索引位上数据对象的平均时间复杂度为O(n)。
+:::
