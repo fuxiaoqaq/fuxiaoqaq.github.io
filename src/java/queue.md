@@ -234,4 +234,5 @@ public class PriorityQueue<E> extends AbstractQueue<E>
 :::warning
 - 默认构造器初始化为11，无参构造器不能小于1。
 - 如果扩容前数组大小小于64 则按照扩容到原数组的2倍，如果扩容前数组大小大于64，则扩容到原数组的1.5倍。
+- 默认为自然排序的小顶堆,通过指定一个逆序的Comparator，可以将其转换为大顶堆
 :::

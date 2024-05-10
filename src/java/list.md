@@ -126,6 +126,19 @@ public class Vector<E>
 - 因为capacityIncrement大于0，即preferred growth = 20。
 - 扩容规律为 40 -> 60 -> 80，每次扩容都按照capacityIncrement的数值进行增量扩容。
 :::
+## 工具类
+### Arrays.copyOf()
+Arrays.copyOf(T[] original, int newLength)方法。 
+该方法是一个工具性质的方法，主要用于将原始数组(original)复制为一个新的数组，后者的长度为指定的新长度(newLength)。 按照这样的描述，对于指定的新长度(newLength)，会出现以下两种情况。
+- 指定的新长度(newLength)小于原始数组(original)的长度，那么原始数组(original)无法复制的部分会被抛弃。
+- 指定的新长度(newLength)大于或等于原始数组(original)的长度，那么原始数组(original)中的所有数据对象(的引用)会按照原来的索引位被依次复制到新的数组中，新数组中多出来的空余部分会被填充为 null
+### ArraysSupport.newLength(int oldLength, int minGrowth, int prefGrowth)
+该方法同样是一个工具性质的方法，主要用于帮助数组在扩容前在不同的场景中找到 新的数组容量，并且防止新的数组容量超过系统规定的数组容量上限。该方法的参数如下。
+- oldLength:扩容前的数组容量。
+- minGrowth:最小的容量增量(必须为正数)。
+- prefGrowth:常规的容量增量，该值需要大于 minGrowth 的值，否则会被忽略。
+
+**在计算扩容后数组容量的过程中，如果 prefGrowth 的值大于 minGrowth 的值，则以prefGrowth 的值计算扩容后的新容量，否则以 minGrowth 的值计算扩容后的新容量。**
 ## ArrayList
 ### 源码分析
 ```java
