@@ -2,8 +2,8 @@
 title: Map
 ---
 
-:::danger
-源代码基于JDK17
+:::danger 注意JDK版本
+#### 源代码基于JDK17
 :::
 
 ## HashMap
@@ -324,9 +324,6 @@ class LRUCache {
 ## TreeMap
 ### 源码分析
 ```java
-import java.util.Iterator;
-import java.util.Map;
-
 public class TreeMap<K,V>
         extends AbstractMap<K,V>
         implements NavigableMap<K,V>, Cloneable, java.io.Serializable
@@ -587,3 +584,393 @@ public class TreeMap<K,V>
 - 它的键是一种**弱键**，放入 WeakHashMap 时，随时会被回收掉，所以不能确保某次访问元素一定存在
 - WeakHashMap 通常作为**缓存**使用，适合存储那些**只需访问一次**、或**只需保存短暂时间**的键值对
 :::
+
+## ConcurrentHashMap <Badge text="JUC并发集合-并发版HashMap"/>
+### 源码分析
+```java
+public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
+        implements ConcurrentMap<K,V>, Serializable {
+    private static final int MAXIMUM_CAPACITY = 1 << 30;
+
+    /**
+     * The default initial table capacity.  Must be a power of 2
+     * (i.e., at least 1) and at most MAXIMUM_CAPACITY.
+     */
+    private static final int DEFAULT_CAPACITY = 16;
+
+    /**
+     * The largest possible (non-power of two) array size.
+     * Needed by toArray and related methods.
+     */
+    static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
+
+    /**
+     * The default concurrency level for this table. Unused but
+     * defined for compatibility with previous versions of this class.
+     */
+    private static final int DEFAULT_CONCURRENCY_LEVEL = 16;
+
+    /**
+     * The load factor for this table. Overrides of this value in
+     * constructors affect only the initial table capacity.  The
+     * actual floating point value isn't normally used -- it is
+     * simpler to use expressions such as {@code n - (n >>> 2)} for
+     * the associated resizing threshold.
+     */
+    private static final float LOAD_FACTOR = 0.75f;
+
+    /**
+     * The bin count threshold for using a tree rather than list for a
+     * bin.  Bins are converted to trees when adding an element to a
+     * bin with at least this many nodes. The value must be greater
+     * than 2, and should be at least 8 to mesh with assumptions in
+     * tree removal about conversion back to plain bins upon
+     * shrinkage.
+     */
+    static final int TREEIFY_THRESHOLD = 8;
+
+    /**
+     * The bin count threshold for untreeifying a (split) bin during a
+     * resize operation. Should be less than TREEIFY_THRESHOLD, and at
+     * most 6 to mesh with shrinkage detection under removal.
+     */
+    static final int UNTREEIFY_THRESHOLD = 6;
+
+    /**
+     * The smallest table capacity for which bins may be treeified.
+     * (Otherwise the table is resized if too many nodes in a bin.)
+     * The value should be at least 4 * TREEIFY_THRESHOLD to avoid
+     * conflicts between resizing and treeification thresholds.
+     */
+    static final int MIN_TREEIFY_CAPACITY = 64;
+
+    /**
+     * Minimum number of rebinnings per transfer step. Ranges are
+     * subdivided to allow multiple resizer threads.  This value
+     * serves as a lower bound to avoid resizers encountering
+     * excessive memory contention.  The value should be at least
+     * DEFAULT_CAPACITY.
+     */
+    private static final int MIN_TRANSFER_STRIDE = 16;
+
+    /**
+     * The number of bits used for generation stamp in sizeCtl.
+     * Must be at least 6 for 32bit arrays.
+     */
+    private static final int RESIZE_STAMP_BITS = 16;
+
+    /**
+     * The maximum number of threads that can help resize.
+     * Must fit in 32 - RESIZE_STAMP_BITS bits.
+     */
+    private static final int MAX_RESIZERS = (1 << (32 - RESIZE_STAMP_BITS)) - 1;
+
+    /**
+     * The bit shift for recording size stamp in sizeCtl.
+     */
+    private static final int RESIZE_STAMP_SHIFT = 32 - RESIZE_STAMP_BITS;
+
+    /*
+     * Encodings for Node hash fields. See above for explanation.
+     */
+    // 非常重要的桶结构中索引位上头节点的标识
+    // MOVED:如果集合结构正在扩容，并且当前桶已经完成了扩容操作中的桶数据对象迁移工作 
+    // 那么头节点的Hash值为-1
+    static final int MOVED     = -1; // hash for forwarding nodes
+    // 如果当前桶结构是红黑树结构，那么头节点的Hash值为-2
+    static final int TREEBIN   = -2; // hash for roots of trees
+    // 在集合中还有一类节点专门用于进行“占位”操作，这类节点的Hash值为-3
+    static final int RESERVED  = -3; // hash for transient reservations
+    static final int HASH_BITS = 0x7fffffff; // usable bits of normal node hash
+
+    static final int NCPU = Runtime.getRuntime().availableProcessors();
+
+    static class Node<K,V> implements Map.Entry<K,V> {
+        final int hash;
+        final K key;
+        volatile V val;
+        volatile ConcurrentHashMap.Node<K,V> next;
+
+        Node(int hash, K key, V val) {
+            this.hash = hash;
+            this.key = key;
+            this.val = val;
+        }
+
+        Node(int hash, K key, V val, ConcurrentHashMap.Node<K,V> next) {
+            this(hash, key, val);
+            this.next = next;
+        }
+
+        public final K getKey()     { return key; }
+        public final V getValue()   { return val; }
+        public final int hashCode() { return key.hashCode() ^ val.hashCode(); }
+        public final String toString() {
+            return Helpers.mapEntryToString(key, val);
+        }
+        public final V setValue(V value) {
+            throw new UnsupportedOperationException();
+        }
+
+        public final boolean equals(Object o) {
+            Object k, v, u; Map.Entry<?,?> e;
+            return ((o instanceof Map.Entry) &&
+                    (k = (e = (Map.Entry<?,?>)o).getKey()) != null &&
+                    (v = e.getValue()) != null &&
+                    (k == key || k.equals(key)) &&
+                    (v == (u = val) || v.equals(u)));
+        }
+
+        /**
+         * Virtualized support for map.get(); overridden in subclasses.
+         */
+        ConcurrentHashMap.Node<K,V> find(int h, Object k) {
+            ConcurrentHashMap.Node<K,V> e = this;
+            if (k != null) {
+                do {
+                    K ek;
+                    if (e.hash == h &&
+                            ((ek = e.key) == k || (ek != null && k.equals(ek))))
+                        return e;
+                } while ((e = e.next) != null);
+            }
+            return null;
+        }
+    }
+    
+    // 这个属性的意义同HashMap集合中table属性的意义相同
+    // 主要用于描述集合内部的主要数组结构
+    transient volatile ConcurrentHashMap.Node<K,V>[] table;
+
+    // 主要用于进行集合扩容操作的属性，该属性在扩容过程中负责对扩容后的数组进行引用 
+    // 在没有进行扩容操作时，该属性值为null
+    private transient volatile ConcurrentHashMap.Node<K,V>[] nextTable;
+
+    // 基础计数器，在没有并发竞争的场景中，主要用于记录当前集合中的数据对象总量
+    private transient volatile long baseCount;
+
+    // 非常重要的数组容量控制数值，当集合处于不同的工作状态时，这个数值具有不同的用途
+    // 例如，在进行扩容操作时，该数值表示扩容状态，在扩容操作完成后，该数值表示下次扩容的数值计数
+    private transient volatile int sizeCtl;
+
+    // 在扩容过程中，每个有效的桶都会被拆分成两个新的桶结构
+    // 这个问题已经在讲解HashMap集合时讲解过
+    // 该数值为帮助扩容的线程指明了下一个要被拆分的桶所在的索引位
+    private transient volatile int transferIndex;
+
+    // 表示目前 CounterCells 数量计数器是否由于某种原因无法工作，0 表示可以工作，1 表示不能工作 
+    // 当CounterCells数量计数器被扩容或被初始化时，该值为1，其他时间为0
+    private transient volatile int cellsBusy;
+
+    /**
+     * Table of counter cells. When non-null, size is a power of 2.
+     * 该数组又称为计数盒子，主要用于在高并发场景中进行集合中数据对象数量的计数
+     */
+    private transient volatile ConcurrentHashMap.CounterCell[] counterCells;
+
+    // views
+    private transient ConcurrentHashMap.KeySetView<K,V> keySet;
+    private transient ConcurrentHashMap.ValuesView<K,V> values;
+    private transient ConcurrentHashMap.EntrySetView<K,V> entrySet;
+
+
+    /* ---------------- Public operations -------------- */
+
+   
+    public ConcurrentHashMap() {
+    }
+
+   
+    public ConcurrentHashMap(int initialCapacity) {
+        this(initialCapacity, LOAD_FACTOR, 1);
+    }
+
+  
+    public ConcurrentHashMap(Map<? extends K, ? extends V> m) {
+        this.sizeCtl = DEFAULT_CAPACITY;
+        putAll(m);
+    }
+    
+    public ConcurrentHashMap(int initialCapacity, float loadFactor) {
+        this(initialCapacity, loadFactor, 1);
+    }
+    
+    public ConcurrentHashMap(int initialCapacity,
+                             float loadFactor, int concurrencyLevel) {
+        if (!(loadFactor > 0.0f) || initialCapacity < 0 || concurrencyLevel <= 0)
+            throw new IllegalArgumentException();
+        if (initialCapacity < concurrencyLevel)   // Use at least as many bins
+            initialCapacity = concurrencyLevel;   // as estimated threads
+        long size = (long)(1.0 + (long)initialCapacity / loadFactor);
+        int cap = (size >= (long)MAXIMUM_CAPACITY) ?
+                MAXIMUM_CAPACITY : tableSizeFor((int)size);
+        this.sizeCtl = cap;
+    }
+
+}
+```
+### 主要属性
+:::warning
+#### sizeCtl
+- 多个正在同时操作 ConcurrentHashMap 集合的线程，会根据该属性值判断，当前ConcurrentHashMap集合所处的状态，该属性值会在数组初始化、扩容等处理环节影响处理结果。
+- 0:表示当前集合的数组还没有初始化。
+- -1:表示当前集合正在被初始化。 
+- 其他负数:表示当前集合正在进行扩容操作，并且这个负数的低`16`位可表示参与扩容操作的线程数量(`减1`)，后面将进行详细讲解。
+- 正整数:表示下次进行扩容操作的阈值(一旦达到这个阈值，就需要进行下一次扩容操作)，并且当前集合并没有进行扩容操作。
+#### transferIndex
+- ConcurrentHashMap 集合的扩容操作基于`CAS`思想进行设计，并且充分利用了多线程的处理性能。
+- 当某个线程发现 ConcurrentHashMap 集合正在进行扩容操作时，可能会参与扩容过程，帮助这个扩容过程尽快完成。
+- 扩容过程涉及现有的每个桶中数据对象迁移的问题，而该数值(加 1)主要用于帮助这些线程共享下一个进行数据对象迁移操作的桶结构的索引位。
+#### 头节点hash值
+- 以上源码片段中每个桶结构头节点的 Hash 值(MOVED、TREEBIN、 RESERVED)都为负数，表示特定处理场景中的节点类型，并且桶结构中没有存储真实的 K-V 键值对节点。
+- 而链表结构的头节点的 Hash 值为正常的 Hash 值，并且链 表结构中存储了真实的 K-V 键值对节点
+#### baseCount、cellsBusy 和 counterCells
+- 当前 ConcurrentHashMap 集合中 K-V 键值对 节点的总数量并不是由一个单一的属性记录的，而是由 3 个属性配合记录的。
+- 如果 集合的工作场景并发规模不大，则使用 baseCount 属性进行记录;如果并发规模较 大，则使用 counterCells 数组进行记录。
+- cellsBusy 属性主要用于记录和控制 counterCells 数组的工作状态。
+:::
+### put()方法
+put()方法主要用于将一个不为 null 的 K-V 键值对节点添加到集合中，如果集合中已 经存在相同的 Key 键信息，则进行 Value 值信息的替换。
+put()方法内部实际上调用了一个putVal()方法，后者主要有 3 个传入参数，并且主要考虑两种添加场景:一种场景是添加某个数组索引位上的节点，即链表结构的根节点;另一种场景是在获得独占操作权的桶结构上添加新的红黑树节点或新的链表节点。
+
+```java
+// 该方法主要由put()方法和putIfAbsent()方法进行调用，是添加K-V键值对节点的主要方法 
+// key:本次需要添加的K-V键值对节点的Key键信息，不能为null
+// value:本次需要添加的K-V键值对的Value值信息，不能为null
+// onlyIfAbsent:当发现Key键信息已经存在时，是否要进行替换操作
+// 如果该值为false，则表示需要进行替换操作
+final V putVal(K key, V value, boolean onlyIfAbsent) {
+        if (key == null || value == null) throw new NullPointerException();
+        int hash = spread(key.hashCode());
+        int binCount = 0;
+        // 整个添加过程基于CAS思路进行设计，
+        // 在多线程并发场景中，在没有得到可预见的正确操作结果前，会不停重试
+        for (Node<K,V>[] tab = table;;) {
+            Node<K,V> f; int n, i, fh; K fk; V fv;
+            // ======== 以下是第一个处理步骤:
+            // 准备集合的内部工作结构，准备符合要求的数组索引位上的第一个Node节点
+            // 如果成立，说明ConcurrentHashMap集合的内部数组还没有准备好，那么首先初始化内部数组结构
+            if (tab == null || (n = tab.length) == 0)
+                tab = initTable();
+            // 通过以下代码，依据(n - 1) & hash结果计算出当前K-V键值对节点应该放置于哪一个桶索引位上
+            // 如果这个索引位上还没有放置任何节点，则通过CAS操作，在该索引位上添加首个节点
+            // 如果节点添加成功，则认为完成了主要的节点添加过程，跳出for循环，不再重试    
+            else if ((f = tabAt(tab, i = (n - 1) & hash)) == null) {
+                if (casTabAt(tab, i, null, new Node<K,V>(hash, key, value)))
+                    break;                   // no lock when adding to empty bin
+            }
+            // 如果条件成立，则说明当前集合正在进行扩容操作，并且这个桶结构已经完成了数据对象迁移操作 
+            // 但整个数据对象迁移过程还没有完成，所以本线程通过helpTransfer()方法加入扩容过程， 
+            // 从而帮助整个集合尽快完成所有的扩容操作
+            else if ((fh = f.hash) == MOVED)
+                tab = helpTransfer(tab, f);
+            // 如果条件成立，则说明这个桶结构的头节点和当前要添加的K-V键值对节点相同 
+            // 如果没有设置更新要求，则工作结束    
+            else if (onlyIfAbsent // check first node without acquiring lock
+                     && fh == hash
+                     && ((fk = f.key) == key || (fk != null && key.equals(fk)))
+                     && (fv = f.val) != null)
+                return fv;
+            // ======= 以下是第二个处理步骤:
+            // 在符合要求的数组索引位上已经具备第一个Node节点的前提下(在特定的桶结构中)，
+            // 在使用Object Monitor模式保证当前线程得到第一个Node节点的独占操作权的前提下， 
+            // 进行链表结构或红黑树结构中新的K-V键值对节点的添加(或修改)操作    
+            else {
+                V oldVal = null;
+                // synchronized(f)就是对当前桶的操作进行加锁
+                // 通过获取桶结构中头节点的独占操作权的方式，获取整个桶结构的独占操作权
+                synchronized (f) {
+                    // 如果条件不成立，则说明在本线程获得独占操作权前，该桶结构的头节点已经由其他线程添加完毕，
+                    // 所以本次操作需要回到for循环的位置进行重试
+                    if (tabAt(tab, i) == f) {
+                        // 这是第二个步骤可能的第1个处理分支:
+                        // 如果满足条件，则说明以当前i号索引位上的节点为起始节点的桶结构是一个链表结构，
+                        // 使用该if代码块的逻辑结构完成节点添加(或修改)操作
+                        // 该if代码块中的处理逻辑和HashMap集合中对应的处理逻辑一致
+                        if (fh >= 0) {
+                            binCount = 1;
+                            for (Node<K,V> e = f;; ++binCount) {
+                                K ek;
+                                if (e.hash == hash &&
+                                    ((ek = e.key) == key ||
+                                     (ek != null && key.equals(ek)))) {
+                                    oldVal = e.val;
+                                    if (!onlyIfAbsent)
+                                        e.val = value;
+                                    break;
+                                }
+                                Node<K,V> pred = e;
+                                if ((e = e.next) == null) {
+                                    pred.next = new Node<K,V>(hash, key, value);
+                                    break;
+                                }
+                            }
+                        }
+                        // 这是第二个处理步骤可能的第2个处理分支:
+                        // 如果条件成立，则说明以当前i号索引位为起始节点的桶结构是一个红黑树结构
+                        // 使用该if代码块的逻辑结构完成节点添加(或修改)操作
+                        // 该if代码块中的处理逻辑和HashMap集合中对应的处理逻辑基本一致，此处不再赘述
+                        else if (f instanceof TreeBin) {
+                            Node<K,V> p;
+                            binCount = 2;
+                            if ((p = ((TreeBin<K,V>)f).putTreeVal(hash, key,
+                                                           value)) != null) {
+                                oldVal = p.val;
+                                if (!onlyIfAbsent)
+                                    p.val = value;
+                            }
+                        }
+                        // 如果头节点为“占位”作用的预留节点，则抛出异常
+                        else if (f instanceof ReservationNode)
+                            throw new IllegalStateException("Recursive update");
+                    }
+                }
+                // 以下是第三个处理步骤:
+                // 在完成节点添加操作后，如果链表结构中的数据对象数量已经满足链表结构向红黑树结构转换的要求， 
+                // 那么进行数据结构的转换(当然，在treeifyBin()方法内部还要进行合规判定)
+                // 注意:treeifyBin()方法中的转换过程同样需要获取当前桶的独占操作权
+                if (binCount != 0) {
+                    if (binCount >= TREEIFY_THRESHOLD)
+                        treeifyBin(tab, i);
+                    if (oldVal != null)
+                        return oldVal;
+                    break;
+                }
+            }
+        }
+        addCount(1L, binCount);
+        return null;
+}
+```
+:::warning 使用 putVal()方法进行 K-V 键值对节点的添加操作，主要分为三步
+- 定位、验证、初始化操作。定位操作是依据当前 K-V 键值对节点中 Key 键信息的 Hash 值取余后(基于目前数组的长度通过与运算进行取余)的结果，
+  确定当前 K-V 键值对 节点在桶结构中的索引位。验证操作是保证当前集合结构和桶结构处于一个正确的状态，可以进行节点添加操作，如果在验证过程中发现集合正在进行扩容操作，则参与扩容操作
+  (根据条件)。初始化操作是在集合数组没有初始化的情况下，首先完成集合数组的初始化。 这一步主要基于 CAS 思想进行设计，如果没有达到工作目标，则进行重试。
+- 正式的 K-V 键值对节点添加操作。这个操作分为两个场景，如果当前桶结构基于 链表进行数据组织(判定依据是当前桶结构的头节点拥有一个“正常”的 Hash 值“fh >= 0”)， 那么将新的 K-V 键值对节点添加到链表的尾部;如果当前桶结构基于红黑树进行数据组织
+  (判定依据是当前桶结构的头节点类型为 TreeBin)，那么使用 putTreeVal()方法，在红黑树 的适当位置添加新的 K-V 键值对节点。如果线程要进行第(2)步操作，则在 Object Monitor 模式下获得当前桶结构的独占操作权。获得桶结构独占操作权的依据是，获得当前桶结构 的头节点的独占操作权。
+- 验证桶结构并伺机进行桶结构转换操作。该操作的判定依据和 HashMap 集合中相关 工作的判定依据一致，即当前以链表结构组织的桶中的数据对象数量大于 TREEIFY_THRESHOLD 常量值，并且集合中的 table 数组长度大于 MIN_TREEIFY_CAPACITY 常量值(该判定在 treeifyBin()方法中进行)。
+  1. 如果要在 treeifyBin()方法中进行红黑树的转化工作，则必须获得当前桶结构的独占操作权，也就是说，对于同一个桶结构，要么进行节点添加操作，要么进行数据结构转换操作，不可能同时进行两个处理过程。
+  2. 和 HashMap 集合的数据处理过程不同的是，ConcurrentHashMap 集合中某个桶结构 上如果是红黑树，那么其头节点(红黑树根节点)的节点类型并不是 TreeNode 而是TreeBin，后者的 Hash 值减 2
+:::
+在成功完成节点添加操作后，最后需要进行数量计数器的增减操作，并且检查是否需要因为链表中数据对象过多而转换为红黑树，或者是否需要进行数组扩容操作和桶数据对 象迁移操作。这些操作在 treeifyBin()方法和 addCount()方法中进行，并且这些方法在数组 长度小于设置常量值的情况下(小于 MIN_TREEIFY_CAPACITY 的常量值 64)优先进行 数组扩容操作和桶数据对象迁移操作
+### 扩容与协助扩容
+#### 扩容理论
+- ConcurrentHashMap 集合需要找到一种防止重复扩容的方法。这是因为在连续多次的 节点添加操作过程中，很有可能出现两个或更多个线程同时认为 ConcurrentHashMap 集合需要扩容，最后造成 ConcurrentHashMap 集合重复进行同一次扩容操作多次的 情况。
+- ConcurrentHashMap 集合工作在多线程并发场景中，可以利用这个特点，在扩容过 程中，特别是在扩容操作的数据对象迁移过程中，让多个线程同时协作，从而加 快数据对象迁移过程。
+- ConcurrentHashMap 集合在成功完成新 K-V 键值对节点的添加操作后，还会进行数 量计数器的增加操作，但如果数量计数器只是一个单独的属性，那么势必导致多个 同时完成节点添加操作的线程都在抢占这个计数器进行原子性操作，最终形成较明 显的性能瓶颈。因此 ConcurrentHashMap 集合需要找到一种方法，用于显著降低进 行数量计数器操作时的性能瓶颈。
+:::warning ConcurrentHashMap 集合是如何设计扩容操作的呢?
+简单来说，就是使用 CAS 技术 避免同一次扩容操作被重复执行多次，采用数据标记的方式(sizeCtl)在各个参与操作 的线程间同步集合状态，同样通过数据标记的方式(transferIndex)指导各个参与线程 协作完成集合扩容操作和数据对象迁移操作，使用计数盒子(counterCells)解决计数器 操作竞争的问题。
+:::
+#### 扩容过程
+1. 在ConcurrentHashMap集合中如何进行扩容操作
+   - ConcurrentHashMap 集合中的 addCount()方 法和 treeifyBin()
+   - 第一个场景是在某个桶 结构满足红黑树转换的最小数量要求(TREEIFY_THRESHOLD)，但是数组容量还没有达 到最小容量要求(MIN_TREEIFY_CAPACITY)时，会优先进行扩容操作
+   - 第二个场景是 在成功进行了一个新的 K-V 键值对节点的添加操作后，正在进行数量计数器的增加操作时， 发现增加后的计数器值已经大于 sizeCtl 属性的值。sizeCtl 属性的值最初可以是根据负载因 子计算得到的值，也可以是上次扩容操作计算出的下次扩容的阈值。
+2. 使用 sizeCtl 属性巧妙地记录扩容过程
+3. CounterCell 并发计数
+4. transfer() 实现多线程扩容,当put的时候发现数组正在扩容,会执行helpTransfer()方法,让put 线程帮助进行扩容
+## ConcurrentSkipListMap <Badge text="JUC并发集合-基于SkipList的有序Map"/>
+### 说明
+1. ConcurrentSkipListMap是一个基于SkipList实现的线程安全的有序存储的Map
+2. 默认情况下根据key自然排序(Comparable)，或者根据在Map进行创建时提供的比较器进行自定义排序(Comparator)。同样，该类不允许key或者value为null
+3. ConcurrentSkipListMap 的数据结构横向纵向都是链表

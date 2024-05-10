@@ -2,8 +2,8 @@
 title: Set
 ---
 
-:::danger
-源代码基于JDK17
+:::danger 注意JDK版本
+#### 源代码基于JDK17
 :::
 
 ## HashSet
@@ -43,3 +43,39 @@ title: Set
 #### 特性
 - TreeSet 是基于 TreeMap 的实现，所以存储的元素是**有序**的
 :::
+
+## CopyOnWriteArraySet <Badge text="JUC并发集合-并发版Set"/>
+### 源码分析
+```java
+public class CopyOnWriteArraySet<E> extends AbstractSet<E>
+        implements java.io.Serializable {
+    public CopyOnWriteArraySet() {
+        al = new CopyOnWriteArrayList<E>();
+    }
+    public boolean add(E e) {
+        return al.addIfAbsent(e);
+    }
+}        
+```
+### 总结
+:::warning
+- CopyOnWriteArraySet 基于CopyOnWriteArrayList实现 默认构造器可以看出
+- 可变操作(add,remove,set)都需要锁定,调用的CopyOnWriteArrayList
+- 适合集合大小保持较小,读操作频发的场景
+- CopyOnWriteArrayList是可以重复的,CopyOnWriteArraySet主要是基于CopyOnWriteArrayList.addIfAbsent方法保持数据不重复
+:::
+## ConcurrentSkipListSet <Badge text="JUC并发集合-基于SkipList的有序Set"/>
+### 源码分析
+```java
+    private final ConcurrentNavigableMap<E,Object> m;
+
+    public ConcurrentSkipListSet() {
+        m = new ConcurrentSkipListMap<E,Object>();
+    }
+    public boolean add(E e) {
+        return m.putIfAbsent(e, Boolean.TRUE) == null;
+    }
+```
+### 总结
+- 基于ConcurrentSkipListMap实现,只使用ConcurrentSkipListMap的 k ,v使用Object填充
+- 调用 ConcurrentNavigableMap 的putIfAbsent保证key不重复

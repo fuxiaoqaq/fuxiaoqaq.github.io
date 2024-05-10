@@ -2,8 +2,8 @@
 title: Queue Deque
 ---
 
-:::danger
-源代码基于JDK17
+:::danger 注意JDK版本
+#### 源代码基于JDK17
 :::
 
 ## ArrayDeque
@@ -234,5 +234,100 @@ public class PriorityQueue<E> extends AbstractQueue<E>
 :::warning
 - 默认构造器初始化为11，无参构造器不能小于1。
 - 如果扩容前数组大小小于64 则按照扩容到原数组的2倍，如果扩容前数组大小大于64，则扩容到原数组的1.5倍。
-- 默认为自然排序的小顶堆,通过指定一个逆序的Comparator，可以将其转换为大顶堆
+- 默认为自然排序的小顶堆,通过指定一个逆序的Comparator，可以将其转换为大顶堆。
 :::
+
+## ArrayBlockingQueue <Badge text="JUC并发集合"/>
+### 总结
+- 内部基于循环数组的，可以在高并发场景中使用的阻塞队列，也是一种容量有界的队列。该队列符合先进先出(FIFO)的工作原则。
+- 支持公平和非公平两种模式,不支持动态扩容
+  ```java
+  public ArrayBlockingQueue(int capacity, boolean fair) {
+        if (capacity <= 0)
+            throw new IllegalArgumentException();
+        this.items = new Object[capacity];
+        lock = new ReentrantLock(fair);
+        notEmpty = lock.newCondition();
+        notFull =  lock.newCondition();
+  }
+  ```
+- 基于ReentrantLock锁机制,以及lock.newCondition() 用于实现线程之间的协调和通信
+- ArrayBlockingQueue 队列主要依靠基于 AQS 的悲观锁进行工作，为了避免竞争，其读/写操作都采用同一把锁进行控制，也就是说， 读/写操作都需要互相等待
+
+## LinkedBlockingQueue <Badge text="JUC并发集合"/>
+### 总结
+- 内部基于单向链表,可以根据参数指定分为有界队列和无界队列
+- LinkedBlockingQueue 队列中有两个可重入锁(putLock 属性和 takeLock 属性)，分别用于控制数据对象添加过程和数据对象移除过程在并发场景中的正确性，
+  **LinkedBlockingQueue 队列的数据对象添加过程和数据对象移除过程是不冲突的**
+- 不支持非公平模式
+- 基于ReentrantLock锁机制,以及lock.newCondition() 用于实现线程之间的协调和通信
+
+## LinkedBlockingDeque <Badge text="JUC并发集合"/>
+### 总结
+- 内部基于双向链表链表,可以根据参数指定分为有界队列和无界队列
+- 与LinkedBlockingQueue类似,区别在于LinkedBlockingDeque头部尾部都支持插入,移除等操作
+- 不支持非公平模式
+- 基于ReentrantLock锁机制,以及lock.newCondition() 用于实现线程之间的协调和通信
+
+## SynchronousQueue <Badge text="JUC并发集合"/>
+### 源码分析
+```java
+public SynchronousQueue(boolean fair) {
+        transferer = fair ? new TransferQueue<E>() : new TransferStack<E>();
+}
+```
+### 总结
+- SynchronousQueue 是一种特立独行的队列，其本身是没有容量的，比如调用者放一个数据到队列中，调用者是不能够立马返回的，调用者必须等待别人把我放进去的数据消费掉了，才能够返回。
+- SynchronousQueue 基于无锁CAS思想实现
+- 支持两种数据结构 TransferQueue 队列和 TransferStack 栈结构,TransferStack是非公平的
+
+## LinkedTransferQueue <Badge text="JUC并发集合"/>
+### 总结
+- 不基于ReentrantLock锁机制,而是CAS思想
+- 无界队列
+- 不支持非公平模式
+- 和之前利用 ArrayBlockingQueue 队列、LinkedBlockingQueue 队列实现的生产者线程/消费者线程进行比较，
+  最典型的特点是生产者线程可以采用transfer()方法将数据对象添加到LinkedTransferQueue队列中，
+  如果这个数据对象暂时没有消费者线程将其取出处理，则当前生成者线程会进入阻塞状态。
+  而基于 LinkedTransferQueue 队列工作的消费者线程也可以使用类似的方法(如take()方法)试图从队列中取出数据对象，如果没有数据对象可以取出，则消费者进入阻塞状态
+
+## PriorityBlockingQueue <Badge text="JUC并发集合"/>
+### 总结
+- 默认初始化大小11
+- 基于小顶堆,无界队列(最大Integer.MAX_VALUE - 8 相当于无界)
+- 不支持非公平模式
+- 基于ReentrantLock锁机制,以及lock.newCondition() 用于实现线程之间的协调和通信
+### 扩容
+:::warning
+- 默认构造器初始化为11，无参构造器不能小于1。
+- 如果扩容前数组大小小于64 则按照扩容到原数组的2倍，如果扩容前数组大小大于64，则扩容到原数组的1.5倍。
+- PriorityBlockingQueue 队列改用保证原子性的控制来保证同一时 间只有一个扩容请求得到实际操作，其他扩容操作请求保持自旋，直到扩容操作结束
+:::
+## DelayQueue <Badge text="JUC并发集合"/>
+### 说明
+- 主要应用于有延迟处理需求的场景中。例如，根据业务逻辑需要暂停当前的业务处理过程，让处理过程在10分钟后继续执行，但是不能一直占用一个工作线程 (因为工作线程是有限的);在这种情况下，可以将当前处理过程的业务数据描述成一个对
+  象并将其放入DelayQueue队列，然后将工作线程交还业务线程池(以便处理另一个业务); 在到达延迟等待时间后，由DelayQueue队列的消费者线程将其重新放入业务线程池继续执行。
+- DelayQueue队列的数据对象，必须实现Delayed接口，这个接口主要规定了进入DelayQueue队列的数据对象需要有怎样的阻塞等待逻辑
+### 总结
+- DelayQueue队列内部使用PriorityQueue队列作为真实的数据对象存储结构
+- 不支持非公平模式
+- 基于ReentrantLock锁机制,以及lock.newCondition() 用于实现线程之间的协调和通信
+
+## ConcurrentLinkedQueue <Badge text="JUC并发集合"/>
+### 说明
+- ConcurrentLinkedQueue是一个线程安全的队列，它的特点是非阻塞，也就是说当队列为空时，出队操作不会阻塞线程，而是立即返回null。同时，它也不允许插入null元素。
+- ConcurrentLinkedQueue是一个基于链接节点的无界线程安全队列。它采用了先进先出的原则，对于并发访问，它采取了一种无锁算法（lock-free），实现了高效率的并发操作。它通过CAS操作实现了“原子操作”，保证了线程安全
+### 总结
+- 基于单向链表的无界非阻塞高并发队列
+- ConcurrentLinkedQueue的应用场景很广泛，它可以作为多线程环境下的任务队列，也可以作为消息队列、日志队列等
+- 支持先进先出原则，采用无锁算法实现高效的并发操作
+- 不支持随机访问和元素排序
+
+## ConcurrentLinkedDeque <Badge text="JUC并发集合"/>
+### 说明
+- ConcurrentLinkedDeque类提供了线程安全的双端队列操作，支持高效的并发访问，因此在多线程环境下，可以放心地在队列的两端添加或移除元素，而不用担心数据的一致性问题。同时，它的内部实现采用了无锁算法，从而避免了传统锁带来的性能开销。
+- 可以将每个聊天室看作是一个ConcurrentLinkedDeque实例，其中的每个元素都是一条消息，由于ConcurrentLinkedDeque是线程安全的，这意味着多个线程可以同时向同一个聊天室添加或删除消息，而不会导致数据混乱或不一致。
+- 当用户发送一条消息时，可以将这条消息添加到相应聊天室的ConcurrentLinkedDeque的尾部，而当用户查看聊天室的消息历史时，可以从ConcurrentLinkedDeque的头部开始遍历并显示消息，由于ConcurrentLinkedDeque支持在两端进行高效的操作，因此这种使用场景非常合适。ConcurrentLinkedDeque还提供了更加安全的并发操作方法，如offerFirst、offerLast、pollFirst和pollLast等，这些方法可以在多线程环境下安全地添加和删除元素。
+### 总结
+- 基于双向链表的无界非阻塞高并发队列
+- ConcurrentLinkedDeque通过无锁（lock-free）或者最小化锁竞争的设计，提供了更高的吞吐量，基于CAS思想，从而减少了线程间的竞争和阻塞

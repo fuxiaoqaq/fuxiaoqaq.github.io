@@ -2,8 +2,8 @@
 title: List
 ---
 
-:::danger
-源代码基于JDK17
+:::danger 注意JDK版本
+#### 源代码基于JDK17
 :::
 
 ## Vector
@@ -431,4 +431,186 @@ public class LinkedList<E>
 - 如果操作者从双向链表的头节点或尾节点读取数据，那么由于头节点和尾节点分别有first属性和last属性进行标识，因此不存在查询过程的额外耗时，直接读取数据即可。
 - 如果操作者并非在双向链表的头节点或尾节点读取数据，那么肯定存在查询过程，而查询过程都是依据节点间的引用关系遍历双向链表的。不过LinkedList集合对查 询过程做了一些优化处理。例如，根据当前指定的索引位是在双向链表的前半段，还是在双向链表的后半段，确定是从双向链表的头节点开始查询，还是从双向链表的尾节点开始查询，最差的情况是读取数据位于双向链表中部，这样无论是从头节点开始查询，还是尾节点开始查询，性能消耗都差不多。
 - 总而言之，在双向链表中查询指定索引位上数据对象的平均时间复杂度为O(n)。
+:::
+## CopyOnWriteArrayList <Badge text="JUC并发集合-并发版ArrayList"/>
+### 源码分析
+```java
+public class CopyOnWriteArrayList<E>
+    implements List<E>, RandomAccess, Cloneable, java.io.Serializable {
+    private static final long serialVersionUID = 8673264195747942595L;
+
+    /**
+     *  jdk17   基于synchronized内置锁
+     * -jdk17   ReentrantLock
+     */
+    final transient Object lock = new Object();
+    // 该属性是一个数组，主要用于存储集合中的数据
+    private transient volatile Object[] array;
+    
+    final Object[] getArray() {
+        return array;
+    }
+    
+    final void setArray(Object[] a) {
+        array = a;
+    }
+
+    /**
+     * 默认的构造方法，当前array数组的集合容量为1，并且唯一的索引位上的数据对象为null
+     */
+    public CopyOnWriteArrayList() {
+        setArray(new Object[0]);
+    }
+
+    // 该构造方法可以接受一个外部第三方集合，并且对其进行实例化
+    // 在进行实例化时，第三方集合中的数据对象会被复制(引用)到新创建的CopyOnWriteArrayList集 合的对象中
+    public CopyOnWriteArrayList(Collection<? extends E> c) {
+        Object[] es;
+        if (c.getClass() == CopyOnWriteArrayList.class)
+            es = ((CopyOnWriteArrayList<?>)c).getArray();
+        else {
+            es = c.toArray();
+            if (c.getClass() != java.util.ArrayList.class)
+                es = Arrays.copyOf(es, es.length, Object[].class);
+        }
+        setArray(es);
+    }
+    // 该构造方法从外部接受一个数组，并且使用Arrays.copyOf()方法
+    // 形成CopyOnWriteArrayList集合中基于array数组存储的数据对象(引用)
+    public CopyOnWriteArrayList(E[] toCopyIn) {
+        setArray(Arrays.copyOf(toCopyIn, toCopyIn.length, Object[].class));
+    }
+    
+    //CopyOnWriteArrayList 集合在进行数据写操作时，会依靠一个副本进行操作，所 以不支持必须对原始数据进行操作的功能
+    //不支持在迭代器上进行的数据对象更改 操作(使用 remove()方法、set()方法和 add()方法)
+    private static class COWSubListIterator<E> implements ListIterator<E> {
+        private final ListIterator<E> it;
+        private final int offset;
+        private final int size;
+
+        COWSubListIterator(List<E> l, int index, int offset, int size) {
+            this.offset = offset;
+            this.size = size;
+            it = l.listIterator(index + offset);
+        }
+
+        public boolean hasNext() {
+            return nextIndex() < size;
+        }
+
+        public E next() {
+            if (hasNext())
+                return it.next();
+            else
+                throw new NoSuchElementException();
+        }
+
+        public boolean hasPrevious() {
+            return previousIndex() >= 0;
+        }
+
+        public E previous() {
+            if (hasPrevious())
+                return it.previous();
+            else
+                throw new NoSuchElementException();
+        }
+
+        public int nextIndex() {
+            return it.nextIndex() - offset;
+        }
+
+        public int previousIndex() {
+            return it.previousIndex() - offset;
+        }
+        
+        //迭代过程中不允许通过迭代器直接进行移除操作
+        public void remove() {
+            throw new UnsupportedOperationException();
+        }
+        //迭代过程中不允许通过迭代器直接进行修改操作
+        public void set(E e) {
+            throw new UnsupportedOperationException();
+        }
+        //迭代过程中不允许通过迭代器直接进行添加操作
+        public void add(E e) {
+            throw new UnsupportedOperationException();
+        }
+
+        public void forEachRemaining(Consumer<? super E> action) {
+            Objects.requireNonNull(action);
+            while (hasNext()) {
+                action.accept(it.next());
+            }
+        }
+    }
+}    
+```
+### 主要方法
+- get(int)方法
+  ```java
+  /*
+   * get(int)方法主要用于从CopyOnWriteArrayList集合中获取指定索引位上的数据对象，
+   * 该方法无须保证线程安全性，任何操作者、任何线程、任何时间点都可以使用该方法
+   * 或类似方法获取CopyOnWriteArrayList 集合中的数据对象，
+   * 因为该集合中的所有写操作都在一个内存副本中进行，所以任何读操作都不会受影响
+   */
+  public E get(int index) {
+        return elementAt(getArray(), index);
+  }
+  static <E> E elementAt(Object[] a, int index) {
+        return (E) a[index];
+  }
+  ```
+- add(E e)方法
+  ```java
+  /* 
+   * 在add()方法所有处理逻辑开始前，先进行CopyOnWriteArrayList集合的操作权获取操作，
+   * 它并不影响 CopyOnWriteArrayList 集合的读操作，因为根据前面介绍get()方法的源码可知，
+   * CopyOnWriteArrayList 集合的读操作完全无视锁权限，也不会有多线程场景中的数据操作问题。
+   * 类似于add()方法的写操作方法需要获取操作权的原因是，
+   * 防止其他线程可能对CopyOnWriteArrayList集合同时进行写操作，从而造成数据错误
+   */
+  public boolean add(E e) {
+        synchronized (lock) {
+            Object[] es = getArray();
+            int len = es.length;
+            /*
+             * 该集合通过Arrays.copyOf()方法(其内部是System.arraycopy方法)创建一个新的内存空间，
+             * 用于存储副本数组，并且在副本数组中进 行写操作，最后将 CopyOnWriteArrayList 集合中的数组引用为副本数组
+             * 没有JCF中的扩容机制,每次add操作都会在原数组大小的基础上+1,然后把当前数据添加,因此集合不适用与频繁写操作的场景
+             */
+            es = Arrays.copyOf(es, len + 1);
+            es[len] = e;
+            setArray(es);
+            return true;
+        }
+  }
+  ```
+- set(int index, E element)方法
+  ```java
+  // set(int, E)方法主要用于替换 CopyOnWriteArrayList 集合指定数组索引位上的数据对象。该方法的操作过程和 add()方法类似
+  public E set(int index, E element) {
+        synchronized (lock) {
+            Object[] es = getArray();
+            // 获取这个数组指定索引位上的原始数据对象
+            E oldValue = elementAt(es, index);
+            // 如果原始数据对象和将要重新设置的数据对象不同(依据内存地址)， 
+            // 则创建一个新的副本并进行替换
+            if (oldValue != element) {
+                es = es.clone();
+                es[index] = element;
+            }
+            // 为了保证外部调用者调用的非 volatile 修饰的变量遵循 happen−before 原则
+            // Ensure volatile write semantics even when oldvalue == element
+            setArray(es);
+            return oldValue;
+        }
+  }
+  ```
+### 总结
+:::warning
+- 该集合适合应用于多线程并发操作场景中，如果使用集合的场景中不涉及多线程并发操作，那么不建议使用该集合，甚至不建议使用`JUC`中的任何集合，使用`JCF`场景的基本集合即可
+- 该集合在多线程并发操作场景中，优先关注点集中在 **如何保证集合的线程安全性和集合的数据读操作性能**。因此，该集合以显著牺牲自身的写操作性能和内存空间的方式换取读操作性能不受影响。这个特征很好理解，在每次进行读操作前，都要创建一个内存副本，这种操作一定会对内存空间造成浪费，并且内存空间复制操作一定会造成多余的性能消耗。
+- 该集合适合应用于多线程并发操作、多线程读操作次数远远多于写操作次数、集合 中存储的数据规模不大的场景中。
 :::
