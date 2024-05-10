@@ -32,7 +32,10 @@ module.exports = {
                     title: 'Java集合',
                     collapsable: false,
                     children: [
-                        '/java/list'
+                        '/java/list',
+                        '/java/queue',
+                        '/java/map',
+                        '/java/set'
                     ]
                 }
             ],

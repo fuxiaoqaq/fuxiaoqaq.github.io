@@ -2,7 +2,7 @@
 title: List
 ---
 
-:::warning
+:::danger
 源代码基于JDK17
 :::
 
