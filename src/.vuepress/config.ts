@@ -45,20 +45,14 @@ module.exports = {
                     title: 'Mysql基础',
                     collapsable: false,
                     children: [
-                        {
-                            title: 'DDL',
-                            path: '/sql/'
-                        }
+                        '/sql/'
                     ]
                 },
                 {
                     title: 'Mysql进阶',
                     collapsable: false,
                     children: [
-                        {
-                            title: 'DDM',
-                            path: '/sql/test'
-                        }
+                        '/sql/expert'
                     ]
                 }
             ],

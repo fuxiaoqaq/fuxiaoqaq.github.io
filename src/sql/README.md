@@ -1,5 +1,4 @@
 ---
-title: mysql
+title: 基础语句
 ---
 
-这是一个测试
