@@ -35,7 +35,8 @@ module.exports = {
                         '/java/list',
                         '/java/queue',
                         '/java/map',
-                        '/java/set'
+                        '/java/set',
+                        '/java/fail'
                     ]
                 }
             ],
